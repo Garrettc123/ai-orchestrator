@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+import json
+import os
 from uuid import uuid4
 
 LIVE_SKU = "https://buy.stripe.com/3cI00j7YV0hQgDp8BR43S2v"
@@ -126,8 +128,9 @@ class OneSys:
         return {
             "name": "Garrett.ai",
             "kind": "single_organism",
+            "infra": "own-box",
             "rule": "organs_are_families_not_repos",
-            "not": ["chatbot", "agi", "repo_per_organ"],
+            "not": ["chatbot", "agi", "repo_per_organ", "vercel_as_brain"],
             "core": "ai-orchestrator",
             "brand": "Garrett.ai",
             "rhns": {"planner": "rgt+hrm", "gate": "cmc", "commit_min": COMMIT_MIN},
@@ -149,12 +152,10 @@ class OneSys:
         if hop not in SPINE:
             ev = self.emit("system.rejected", {"hop": hop}, "abort")
             return {"ok": False, "cmc": "abort", "event": ev.id, "error": "unknown_hop"}
-
         organ = HOP_ORGAN[hop]
         if self.organs[organ]["state"] == "blocked":
             ev = self.emit(f"spine.{hop}", payload, "abort", hop=hop, organ=organ)
             return {"ok": False, "cmc": "abort", "event": ev.id, "organ": organ, "error": "organ_blocked"}
-
         decision = self.cmc(hop, float(confidence))
         if hop == "checkout" and decision == "commit":
             out: Dict[str, Any] = {
@@ -170,9 +171,26 @@ class OneSys:
             out = {"queued": True, "requires": "stripe.paid=true"}
         else:
             out = {"hop": hop, "accepted": True}
-
         ev = self.emit(f"spine.{hop}", {**payload, "result": out}, decision, hop=hop, organ=organ)
         return {"ok": decision != "abort", "cmc": decision, "event": ev.id, "organ": organ, "hop": hop, "result": out}
 
 
-ONESYS = OneSys()
+def persist(inst: OneSys) -> None:
+    root = os.getenv("DATA_DIR")
+    if not root:
+        return
+    os.makedirs(root, exist_ok=True)
+    path = os.path.join(root, "ledger.jsonl")
+    with open(path, "w", encoding="utf-8") as fh:
+        for row in inst.ledger:
+            fh.write(json.dumps(row) + "\n")
+
+
+class Persisting(OneSys):
+    def emit(self, etype, payload, cmc, hop=None, organ=None):
+        ev = super().emit(etype, payload, cmc, hop=hop, organ=organ)
+        persist(self)
+        return ev
+
+
+ONESYS = Persisting()
