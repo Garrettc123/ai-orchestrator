@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib revenue orchestrator — no pip required."""
+"""Stdlib revenue orchestrator — Garrett.ai surface."""
 from __future__ import annotations
 
 import json
@@ -8,19 +8,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from mars_reason import reason as mars_reason
+from onesys import ONESYS, LIVE_SKU, PLINK, STRIPE_ACCT
 
 HOST = "0.0.0.0"
 PORT = 8000
 STARTED = datetime.now(timezone.utc).isoformat()
-LIVE_SKU = "https://buy.stripe.com/3cI00j7YV0hQgDp8BR43S2v"
-PLINK = "plink_1UKUvNFKGbk21LK5jhAXBaLz"
-STRIPE_ACCT = "acct_1SS3dpFKGbk21LK5"
 
 
 def health():
+    snap = ONESYS.snapshot()
     return {
         "status": "ok",
-        "service": "garcar-ai-orchestrator",
+        "service": "garrett-ai",
+        "organism": "Garrett.ai",
         "env": "production",
         "operator": "Garrett Carroll",
         "market": "DFW_TX",
@@ -42,28 +42,9 @@ def health():
             "plink": PLINK,
             "checkout": LIVE_SKU,
         },
+        "organs": {k: v["state"] for k, v in snap["organs"].items()},
         "repo": "https://github.com/Garrettc123/ai-orchestrator",
         "mars": {"reason": "/v1/mars/reason", "contract": "1.1.0"},
-    }
-
-
-def loop():
-    return {
-        "spine": [
-            "lead_intake",
-            "enrichment",
-            "mars_reason",
-            "outreach",
-            "proposal",
-            "checkout",
-            "crm_sync",
-            "fulfillment",
-            "executive_report",
-        ],
-        "live_sku": LIVE_SKU,
-        "storefront": "https://garrettc123.github.io/",
-        "stripe_account": STRIPE_ACCT,
-        "hubspot_deals_open": ["Comfort Experts LLA-47", "Service Champs LLA-47"],
     }
 
 
@@ -99,12 +80,20 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/health":
             return self._json(200, health())
+        if path in ("/v1/onesys", "/v1/organism"):
+            return self._json(200, ONESYS.snapshot())
+        if path == "/v1/onesys/ledger":
+            return self._json(200, {"ledger": ONESYS.ledger[-100:], "count": len(ONESYS.ledger)})
         if path == "/v1/revenue/loop":
-            return self._json(200, loop())
+            snap = ONESYS.snapshot()
+            return self._json(200, {"spine": snap["spine"], "live_sku": LIVE_SKU, "organs": snap["organs"]})
         if path == "/":
             return self._json(200, {
-                "service": "garcar-ai-orchestrator",
+                "service": "garrett-ai",
+                "brand": "Garrett.ai",
                 "health": "/health",
+                "organism": "/v1/onesys",
+                "act": "POST /v1/onesys/act",
                 "loop": "/v1/revenue/loop",
                 "mars": "/v1/mars/reason",
             })
@@ -113,10 +102,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
+        if path == "/v1/onesys/act":
+            hop = body.get("hop") or body.get("stage") or ""
+            if not hop:
+                return self._json(422, {"error": "hop_required"})
+            return self._json(200, ONESYS.act(hop, payload=body, confidence=float(body.get("confidence", 0.8))))
         if path == "/v1/revenue/leads":
-            return self._json(200, {"accepted": True, "stage": "intake", "lead": body, "offer": {"sku": "LLA-47", "checkout": LIVE_SKU}})
+            return self._json(200, ONESYS.act("intake", payload=body, confidence=0.9))
         if path == "/v1/revenue/checkout":
-            return self._json(200, {"mode": "live_payment_link", "url": LIVE_SKU, "plink": PLINK, "sku": body.get("sku", "LLA-47"), "email": body.get("email"), "company": body.get("company")})
+            return self._json(200, ONESYS.act("checkout", payload=body, confidence=0.9))
         if path == "/v1/mars/reason":
             query = body.get("query") or body.get("task") or ""
             if not query:
@@ -127,7 +121,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"garcar-ai-orchestrator listening on {HOST}:{PORT}", flush=True)
+    print(f"garrett-ai listening on {HOST}:{PORT}", flush=True)
     httpd.serve_forever()
 
 
