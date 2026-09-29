@@ -1,0 +1,16 @@
+mutation ApplyGarcarProfilePins {
+  updateItemsPinnedToProfile(
+    input: {
+      pinnedItemIds: [
+        "R_kgDOQBEnZg"
+        "R_kgDOQjYvmQ"
+        "R_kgDORK_lKw"
+        "R_kgDOUwPWxg"
+        "R_kgDOR9q8Bg"
+        "R_kgDOTtzS0g"
+      ]
+    }
+  ) {
+    clientMutationId
+  }
+}

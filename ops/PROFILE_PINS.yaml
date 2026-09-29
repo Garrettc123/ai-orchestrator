@@ -1,0 +1,57 @@
+system: ai-orchestrator
+owner: Garrettc123
+updated: 2026-09-29
+limit: 6
+note: GitHub profile pins are a user-profile GraphQL write. This file is the source of truth. Apply in one click via scripts/apply_profile_pins.graphql or the profile Customize pins modal.
+
+replace_current:
+  - PROMETHEUS-Global-Infrastructure-Brain
+  - zero-human-ai-platform
+  - ARCHITECT_Pro-Enterprise
+  - AutoGenesis-AI-Platform
+
+keep_if_already_on:
+  - THE-FORGE
+  - ai-swarm-crypto-bounty-system
+
+pinned:
+  - name: autonomous-income-deployment
+    node_id: R_kgDOQBEnZg
+    numeric_id: 1074866022
+    stars: 5
+    role: income deploy spine
+  - name: TITAN-Autonomous-Business-Empire
+    node_id: R_kgDOQjYvmQ
+    numeric_id: 1110847385
+    stars: 3
+    role: Titan / empire face
+    claim_warning: README ARR figure is unverified. Do not quote as cash.
+  - name: autonomous-butler-core
+    node_id: R_kgDORK_lKw
+    numeric_id: 1152378155
+    stars: 2
+    role: agent runtime
+  - name: ai-orchestrator
+    node_id: R_kgDOUwPWxg
+    numeric_id: 1392760518
+    stars: 0
+    role: walking skeleton + LLA-47
+  - name: garcar-landing
+    node_id: R_kgDOR9q8Bg
+    numeric_id: 1205517318
+    stars: 0
+    role: public storefront
+  - name: THE-FORGE
+    node_id: R_kgDOTtzS0g
+    numeric_id: 1323094738
+    stars: 0
+    role: cognitive control loop
+
+if_only_two_slots_remaining:
+  - autonomous-income-deployment
+  - TITAN-Autonomous-Business-Empire
+
+never_pin:
+  - railwayapp/railway-skills
+  - PROMETHEUS-Global-Infrastructure-Brain
+  - repos that claim 1B users or $50M ARR as if paid=true
