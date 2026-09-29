@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+from mars_reason import reason as mars_reason
+
 HOST = "0.0.0.0"
 PORT = 8000
 STARTED = datetime.now(timezone.utc).isoformat()
@@ -28,6 +30,7 @@ def health():
             "openai": "missing",
             "hubspot": "oauth_connected_host",
             "gmail": "oauth_connected_host",
+            "mars": "v1.1_client",
         },
         "revenue_loop": "armed",
         "cash_path": "stripe_payment_link",
@@ -40,6 +43,7 @@ def health():
             "checkout": LIVE_SKU,
         },
         "repo": "https://github.com/Garrettc123/ai-orchestrator",
+        "mars": {"reason": "/v1/mars/reason", "contract": "1.1.0"},
     }
 
 
@@ -48,6 +52,7 @@ def loop():
         "spine": [
             "lead_intake",
             "enrichment",
+            "mars_reason",
             "outreach",
             "proposal",
             "checkout",
@@ -87,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type,X-Api-Key")
         self.end_headers()
 
     def do_GET(self):
@@ -97,7 +102,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/v1/revenue/loop":
             return self._json(200, loop())
         if path == "/":
-            return self._json(200, {"service": "garcar-ai-orchestrator", "health": "/health", "loop": "/v1/revenue/loop"})
+            return self._json(200, {
+                "service": "garcar-ai-orchestrator",
+                "health": "/health",
+                "loop": "/v1/revenue/loop",
+                "mars": "/v1/mars/reason",
+            })
         return self._json(404, {"error": "not_found", "path": path})
 
     def do_POST(self):
@@ -107,6 +117,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"accepted": True, "stage": "intake", "lead": body, "offer": {"sku": "LLA-47", "checkout": LIVE_SKU}})
         if path == "/v1/revenue/checkout":
             return self._json(200, {"mode": "live_payment_link", "url": LIVE_SKU, "plink": PLINK, "sku": body.get("sku", "LLA-47"), "email": body.get("email"), "company": body.get("company")})
+        if path == "/v1/mars/reason":
+            query = body.get("query") or body.get("task") or ""
+            if not query:
+                return self._json(422, {"error": "query_required"})
+            return self._json(200, mars_reason(query, route=body.get("route"), max_tokens=body.get("max_tokens")))
         return self._json(404, {"error": "not_found", "path": path})
 
 
