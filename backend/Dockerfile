@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY mars_reason.py onesys.py serve.py ./
+COPY mars_reason.py onesys.py serve.py knowledge.py ./
 RUN mkdir -p /data
 ENV DATA_DIR=/data
 ENV APP_ENV=production
