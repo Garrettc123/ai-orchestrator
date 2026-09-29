@@ -8,8 +8,9 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+from knowledge import ask as knowledge_ask, inventory as knowledge_inventory
 from mars_reason import reason as mars_reason
-from onesys import ONESYS, LIVE_SKU, PLINK, STRIPE_ACCT
+from onesys import ONESYS, STRIPE_ACCT
 
 HOST = os.getenv("APP_HOST", "0.0.0.0")
 PORT = int(os.getenv("APP_PORT", "8010"))
@@ -22,6 +23,7 @@ def health():
         "status": "ok",
         "service": "garrett-ai",
         "organism": "Garrett.ai",
+        "claim": "operator_system_not_agi",
         "env": os.getenv("APP_ENV", "production"),
         "operator": "Garrett Carroll",
         "market": "DFW_TX",
@@ -29,24 +31,15 @@ def health():
         "port": PORT,
         "connectors": {
             "stripe": "live_account_linked",
-            "openai": "missing",
+            "knowledge": knowledge_inventory()["providers"],
             "hubspot": "oauth_connected_host",
             "gmail": "oauth_connected_host",
             "mars": "v1.1_client",
         },
-        "revenue_loop": "armed",
-        "cash_path": "stripe_payment_link",
-        "stripe_account": STRIPE_ACCT,
-        "sku": {
-            "name": "Contractor Lead Leak Audit",
-            "price": 47,
-            "sku_code": "LLA-47",
-            "plink": PLINK,
-            "checkout": LIVE_SKU,
-        },
         "organs": {k: v["state"] for k, v in snap["organs"].items()},
+        "stripe_account": STRIPE_ACCT,
+        "storefront": "https://garrettc123.github.io/garrett.html",
         "repo": "https://github.com/Garrettc123/ai-orchestrator",
-        "mars": {"reason": "/v1/mars/reason", "contract": "1.1.0"},
     }
 
 
@@ -86,17 +79,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, ONESYS.snapshot())
         if path == "/v1/onesys/ledger":
             return self._json(200, {"ledger": ONESYS.ledger[-100:], "count": len(ONESYS.ledger)})
+        if path in ("/v1/knowledge", "/v1/knowledge/status"):
+            return self._json(200, knowledge_inventory())
         if path == "/v1/revenue/loop":
             snap = ONESYS.snapshot()
-            return self._json(200, {"spine": snap["spine"], "live_sku": LIVE_SKU, "organs": snap["organs"]})
+            return self._json(200, {"spine": snap["spine"], "organs": snap["organs"]})
         if path == "/":
             return self._json(200, {
                 "service": "garrett-ai",
                 "brand": "Garrett.ai",
                 "health": "/health",
                 "organism": "/v1/onesys",
+                "knowledge": "GET /v1/knowledge  POST /v1/knowledge/ask",
                 "act": "POST /v1/onesys/act",
-                "loop": "/v1/revenue/loop",
                 "mars": "/v1/mars/reason",
             })
         return self._json(404, {"error": "not_found", "path": path})
@@ -104,6 +99,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
+        if path in ("/v1/knowledge/ask", "/v1/knowledge"):
+            query = body.get("query") or body.get("q") or body.get("task") or ""
+            if not query:
+                return self._json(422, {"error": "query_required"})
+            return self._json(200, knowledge_ask(query, intent=body.get("intent") or "auto"))
         if path == "/v1/onesys/act":
             hop = body.get("hop") or body.get("stage") or ""
             if not hop:
