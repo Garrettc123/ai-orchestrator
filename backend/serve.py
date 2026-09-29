@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -10,8 +11,8 @@ from urllib.parse import urlparse
 from mars_reason import reason as mars_reason
 from onesys import ONESYS, LIVE_SKU, PLINK, STRIPE_ACCT
 
-HOST = "0.0.0.0"
-PORT = 8000
+HOST = os.getenv("APP_HOST", "0.0.0.0")
+PORT = int(os.getenv("APP_PORT", "8010"))
 STARTED = datetime.now(timezone.utc).isoformat()
 
 
@@ -21,10 +22,11 @@ def health():
         "status": "ok",
         "service": "garrett-ai",
         "organism": "Garrett.ai",
-        "env": "production",
+        "env": os.getenv("APP_ENV", "production"),
         "operator": "Garrett Carroll",
         "market": "DFW_TX",
         "started_at": STARTED,
+        "port": PORT,
         "connectors": {
             "stripe": "live_account_linked",
             "openai": "missing",
