@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Stdlib revenue orchestrator — Garrett.ai surface."""
+"""Garrett.ai — one process. Every repo runs through here."""
 from __future__ import annotations
 
 import json
 import os
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 from knowledge import ask as knowledge_ask, inventory as knowledge_inventory
 from mars_reason import reason as mars_reason
 from onesys import ONESYS, STRIPE_ACCT
+from packages import run as run_package, summary as package_summary
 
 HOST = os.getenv("APP_HOST", "0.0.0.0")
 PORT = int(os.getenv("APP_PORT", "8010"))
@@ -19,27 +20,20 @@ STARTED = datetime.now(timezone.utc).isoformat()
 
 def health():
     snap = ONESYS.snapshot()
+    packs = package_summary()
     return {
         "status": "ok",
         "service": "garrett-ai",
         "organism": "Garrett.ai",
-        "claim": "operator_system_not_agi",
-        "env": os.getenv("APP_ENV", "production"),
+        "packages": packs["count"],
+        "by_family": packs["by_family"],
         "operator": "Garrett Carroll",
-        "market": "DFW_TX",
         "started_at": STARTED,
         "port": PORT,
-        "connectors": {
-            "stripe": "live_account_linked",
-            "knowledge": knowledge_inventory()["providers"],
-            "hubspot": "oauth_connected_host",
-            "gmail": "oauth_connected_host",
-            "mars": "v1.1_client",
-        },
+        "connectors": {"knowledge": knowledge_inventory()["providers"], "stripe": "live_account_linked"},
         "organs": {k: v["state"] for k, v in snap["organs"].items()},
         "stripe_account": STRIPE_ACCT,
         "storefront": "https://garrettc123.github.io/garrett.html",
-        "repo": "https://github.com/Garrettc123/ai-orchestrator",
     }
 
 
@@ -77,28 +71,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, health())
         if path in ("/v1/onesys", "/v1/organism"):
             return self._json(200, ONESYS.snapshot())
-        if path == "/v1/onesys/ledger":
-            return self._json(200, {"ledger": ONESYS.ledger[-100:], "count": len(ONESYS.ledger)})
+        if path in ("/v1/packages", "/v1/catalog"):
+            return self._json(200, package_summary())
+        if path.startswith("/v1/run/"):
+            name = unquote(path.split("/v1/run/", 1)[1])
+            return self._json(200, run_package(name, {}))
         if path in ("/v1/knowledge", "/v1/knowledge/status"):
             return self._json(200, knowledge_inventory())
-        if path == "/v1/revenue/loop":
-            snap = ONESYS.snapshot()
-            return self._json(200, {"spine": snap["spine"], "organs": snap["organs"]})
         if path == "/":
-            return self._json(200, {
-                "service": "garrett-ai",
-                "brand": "Garrett.ai",
-                "health": "/health",
-                "organism": "/v1/onesys",
-                "knowledge": "GET /v1/knowledge  POST /v1/knowledge/ask",
-                "act": "POST /v1/onesys/act",
-                "mars": "/v1/mars/reason",
-            })
+            return self._json(200, {"service": "garrett-ai", "packages": "GET /v1/packages", "run": "POST /v1/run", "knowledge": "POST /v1/knowledge/ask"})
         return self._json(404, {"error": "not_found", "path": path})
 
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
+        if path == "/v1/run":
+            name = body.get("repo") or body.get("package") or body.get("name") or ""
+            if not name:
+                return self._json(422, {"error": "repo_required", "hint": "pass repo: TITAN-Autonomous-Business-Empire"})
+            return self._json(200, run_package(name, body))
+        if path.startswith("/v1/run/"):
+            name = unquote(path.split("/v1/run/", 1)[1])
+            return self._json(200, run_package(name, body))
         if path in ("/v1/knowledge/ask", "/v1/knowledge"):
             query = body.get("query") or body.get("q") or body.get("task") or ""
             if not query:
@@ -109,10 +103,6 @@ class Handler(BaseHTTPRequestHandler):
             if not hop:
                 return self._json(422, {"error": "hop_required"})
             return self._json(200, ONESYS.act(hop, payload=body, confidence=float(body.get("confidence", 0.8))))
-        if path == "/v1/revenue/leads":
-            return self._json(200, ONESYS.act("intake", payload=body, confidence=0.9))
-        if path == "/v1/revenue/checkout":
-            return self._json(200, ONESYS.act("checkout", payload=body, confidence=0.9))
         if path == "/v1/mars/reason":
             query = body.get("query") or body.get("task") or ""
             if not query:
