@@ -1,11 +1,3 @@
-services:
-  orchestrator:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    container_name: garcar-ai-orchestrator
-    restart: unless-stopped
-    env_file:
-      - ../backend/.env
-    ports:
-      - "8000:8000"
+# Deprecated pointer. Own infrastructure lives in infra/docker-compose.yml
+include:
+  - path: ../infra/docker-compose.yml

@@ -1,0 +1,39 @@
+name: garrett-ai
+
+networks:
+  organism:
+    name: garrett-ai
+    driver: bridge
+    internal: false
+
+volumes:
+  ledger:
+    name: garrett-ai-ledger
+
+services:
+  core:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: garrett-ai/core:local
+    container_name: garrett-ai-core
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env
+    environment:
+      APP_ENV: production
+      DATA_DIR: /data
+      BRAND: Garrett.ai
+    volumes:
+      - ledger:/data
+    networks:
+      - organism
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
