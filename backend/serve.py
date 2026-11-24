@@ -12,6 +12,7 @@ from knowledge import ask as knowledge_ask, inventory as knowledge_inventory
 from mars_reason import reason as mars_reason
 from onesys import ONESYS, STRIPE_ACCT
 from packages import run as run_package, summary as package_summary
+from proofdesk import WORKFLOW as PROOFDESK
 
 HOST = os.getenv("APP_HOST", "0.0.0.0")
 PORT = int(os.getenv("APP_PORT", "8010"))
@@ -30,10 +31,11 @@ def health():
         "operator": "Garrett Carroll",
         "started_at": STARTED,
         "port": PORT,
-        "connectors": {"knowledge": knowledge_inventory()["providers"], "stripe": "live_account_linked"},
+        "connectors": {"knowledge": knowledge_inventory()["providers"], "stripe": "live_account_linked", "proofdesk": "local-pilot"},
         "organs": {k: v["state"] for k, v in snap["organs"].items()},
         "stripe_account": STRIPE_ACCT,
         "storefront": "https://garrettc123.github.io/garrett.html",
+        "proofdesk_records": len(PROOFDESK.records),
     }
 
 
@@ -58,6 +60,10 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
+    def _read_body(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        return self.rfile.read(length).decode("utf-8", errors="replace") if length else ""
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -78,12 +84,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, run_package(name, {}))
         if path in ("/v1/knowledge", "/v1/knowledge/status"):
             return self._json(200, knowledge_inventory())
+        if path == "/v1/proofdesk/held.csv":
+            body = PROOFDESK.export_held_summary().encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if path == "/":
-            return self._json(200, {"service": "garrett-ai", "packages": "GET /v1/packages", "run": "POST /v1/run", "knowledge": "POST /v1/knowledge/ask"})
+            return self._json(200, {"service": "garrett-ai", "packages": "GET /v1/packages", "run": "POST /v1/run", "knowledge": "POST /v1/knowledge/ask", "proofdesk": "POST /v1/proofdesk/ingest"})
         return self._json(404, {"error": "not_found", "path": path})
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/v1/proofdesk/ingest":
+            content = self._read_body()
+            source = self.headers.get("X-Source-File") or "upload.csv"
+            return self._json(200, PROOFDESK.ingest_csv(content, source_file=source))
         body = self._read_json()
         if path == "/v1/run":
             name = body.get("repo") or body.get("package") or body.get("name") or ""
